@@ -383,6 +383,39 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateUnknownCLIListsKnownCLIs(t *testing.T) {
+	cfg := &Config{
+		Agents: []Agent{
+			{Name: "unknown", CLI: "not-real", Enabled: true},
+			{Name: "claude", CLI: "claude", Enabled: true},
+		},
+		Plan: PlanConfig{
+			TurnOrder: []string{"claude"},
+			PlanAgent: "claude",
+		},
+		Loop: LoopConfig{
+			Executor:    "claude",
+			Reviewer:    "claude",
+			TaskTimeout: Duration(15 * time.Minute),
+			Ntfy:        NtfyConfig{Topic: "test"},
+		},
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	msg := err.Error()
+	for _, cli := range knownCLIList() {
+		if !contains(msg, cli) {
+			t.Fatalf("expected validation error to list known CLI %q, got:\n%s", cli, msg)
+		}
+	}
+	if !contains(msg, "[claude codex echo gemini opencode]") {
+		t.Fatalf("expected sorted known CLI list, got:\n%s", msg)
+	}
+}
+
 func contains(s, substr string) bool {
 	for i := 0; i+len(substr) <= len(s); i++ {
 		if s[i:i+len(substr)] == substr {

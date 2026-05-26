@@ -14,26 +14,33 @@ func NewCodexAdapter() Adapter {
 func (a *codexAdapter) Name() string { return "codex" }
 
 func (a *codexAdapter) Capabilities() Capabilities {
-	// codex CLI does not expose a stable resume flag; fall back to transcript replay.
-	return Capabilities{SupportsResume: false}
+	// codex exec supports resume via `codex exec resume <session_id>`
+	return Capabilities{SupportsResume: true}
 }
 
 // buildCodexArgs constructs CLI args for a non-interactive codex invocation.
-// Kept pure for unit testing.
+// Uses `codex exec` subcommand and `codex exec resume` for session resumption.
+// Transcript replay is used when transcript is present without a ResumeSessionID.
 func buildCodexArgs(req Request) []string {
-	// TODO: verify exact non-interactive flag for current codex CLI version
-	args := []string{
-		"--quiet",
+	var args []string
+
+	if req.ResumeSessionID != "" {
+		// Resume an existing session
+		args = []string{"exec", "resume", req.ResumeSessionID}
+	} else {
+		// Start a new session
+		args = []string{"exec"}
+		// codex exec does not expose --system-prompt; replay carries context.
+		if req.SystemPrompt != "" || len(req.Transcript) > 0 {
+			args = append(args, renderReplay(req))
+		} else {
+			args = append(args, req.NewMessage)
+		}
+		return args
 	}
-	// codex has no resume; include transcript context via replay rendering
-	msg := req.NewMessage
-	if len(req.Transcript) > 0 {
-		msg = renderReplay(req)
-	} else if req.SystemPrompt != "" {
-		// TODO: verify system-prompt flag name for codex CLI
-		args = append(args, "--system-prompt", req.SystemPrompt)
-	}
-	args = append(args, msg)
+
+	// For resume, the prompt is provided as additional argument
+	args = append(args, req.NewMessage)
 	return args
 }
 
@@ -42,23 +49,29 @@ func (a *codexAdapter) Invoke(ctx context.Context, req Request) (<-chan Token, <
 	results := make(chan Result, 1)
 
 	go func() {
-		defer close(tokens)
-		defer close(results)
+		rawTokens, rawResults := streamCommand(ctx, "codex", buildCodexArgs(req), "")
 
-		rawTokens, rawResults := runStreaming(ctx, "codex", buildCodexArgs(req), "")
-
+		var cancelled bool
 		for t := range rawTokens {
-			select {
-			case <-ctx.Done():
-				drain(rawTokens)
-				return
-			case tokens <- t:
+			if !sendAdapterToken(ctx, rawTokens, tokens, t) {
+				cancelled = true
+				break
 			}
 		}
 
-		r := <-rawResults
-		// codex CLI does not expose a session ID in its output
+		close(tokens)
+
+		var r Result
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			r = Result{Err: ctxErr}
+		} else if !cancelled {
+			r = <-rawResults
+		} else {
+			r = Result{Err: context.Canceled}
+		}
+		// codex CLI does not expose a session ID in its output stream
 		results <- r
+		close(results)
 	}()
 
 	return tokens, results

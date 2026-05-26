@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -114,7 +115,8 @@ func (c *Config) Validate() error {
 		}
 
 		if !KnownCLIs[agent.CLI] {
-			errs = append(errs, fmt.Sprintf("agent[%d] %q: CLI %q not in known set (claude, codex, gemini, opencode)", i, agent.Name, agent.CLI))
+			knownList := knownCLIList()
+			errs = append(errs, fmt.Sprintf("agent[%d] %q: CLI %q not in known set %v", i, agent.Name, agent.CLI, knownList))
 		}
 	}
 
@@ -193,4 +195,13 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func knownCLIList() []string {
+	knownList := make([]string, 0, len(KnownCLIs))
+	for cli := range KnownCLIs {
+		knownList = append(knownList, cli)
+	}
+	sort.Strings(knownList)
+	return knownList
 }

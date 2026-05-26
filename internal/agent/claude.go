@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"strings"
 )
 
 type claudeAdapter struct{}
@@ -22,11 +23,14 @@ func (a *claudeAdapter) Capabilities() Capabilities {
 // Kept as a pure function so it can be tested without spawning a process.
 //
 // --verbose is required for --output-format=stream-json to emit events.
+// --include-partial-messages enables true partial-message streaming.
+// If ResumeSessionID is empty but Transcript is present, use transcript replay.
 func buildClaudeArgs(req Request) []string {
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
 		"--verbose",
+		"--include-partial-messages",
 	}
 	if req.SystemPrompt != "" {
 		args = append(args, "--system-prompt", req.SystemPrompt)
@@ -34,7 +38,11 @@ func buildClaudeArgs(req Request) []string {
 	if req.ResumeSessionID != "" {
 		args = append(args, "--resume", req.ResumeSessionID)
 	}
-	args = append(args, req.NewMessage)
+	msg := req.NewMessage
+	if len(req.Transcript) > 0 && req.ResumeSessionID == "" {
+		msg = renderReplay(req)
+	}
+	args = append(args, msg)
 	return args
 }
 
@@ -61,21 +69,18 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req Request) (<-chan Token, 
 	results := make(chan Result, 1)
 
 	go func() {
-		defer close(tokens)
-		defer close(results)
-
-		rawTokens, rawResults := runStreaming(ctx, "claude", buildClaudeArgs(req), "")
+		rawTokens, rawResults := streamCommand(ctx, "claude", buildClaudeArgs(req), "")
 
 		var sessionID string
+		var emittedText string
+		var cancelled bool
 		for t := range rawTokens {
 			var ev claudeEvent
 			if err := json.Unmarshal([]byte(t.Text), &ev); err != nil {
 				// Non-JSON line — emit as-is
-				select {
-				case <-ctx.Done():
-					drain(rawTokens)
-					return
-				case tokens <- t:
+				if !sendAdapterToken(ctx, rawTokens, tokens, t) {
+					cancelled = true
+					break
 				}
 				continue
 			}
@@ -87,22 +92,39 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req Request) (<-chan Token, 
 
 			// Emit text from assistant message content blocks
 			if ev.Type == "assistant" && ev.Message != nil {
-				for _, block := range ev.Message.Content {
-					if block.Type == "text" && block.Text != "" {
-						select {
-						case <-ctx.Done():
-							drain(rawTokens)
-							return
-						case tokens <- Token{Text: block.Text}:
-						}
-					}
+				text := claudeText(ev.Message)
+				if text == "" {
+					continue
 				}
+				delta := claudeDelta(emittedText, text)
+				if delta == "" {
+					continue
+				}
+				if !sendAdapterToken(ctx, rawTokens, tokens, Token{Text: delta}) {
+					cancelled = true
+					break
+				}
+				emittedText += delta
+			}
+
+			if cancelled {
+				break
 			}
 		}
 
-		r := <-rawResults
+		close(tokens)
+
+		var r Result
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			r = Result{Err: ctxErr}
+		} else if !cancelled {
+			r = <-rawResults
+		} else {
+			r = Result{Err: context.Canceled}
+		}
 		r.SessionID = sessionID
 		results <- r
+		close(results)
 	}()
 
 	return tokens, results
@@ -110,5 +132,43 @@ func (a *claudeAdapter) Invoke(ctx context.Context, req Request) (<-chan Token, 
 
 func drain(ch <-chan Token) {
 	for range ch {
+	}
+}
+
+func sendAdapterToken(ctx context.Context, rawTokens <-chan Token, tokens chan<- Token, token Token) bool {
+	select {
+	case <-ctx.Done():
+		drain(rawTokens)
+		return false
+	default:
+	}
+
+	select {
+	case <-ctx.Done():
+		drain(rawTokens)
+		return false
+	case tokens <- token:
+		return true
+	}
+}
+
+func claudeText(msg *claudeMessage) string {
+	var b strings.Builder
+	for _, block := range msg.Content {
+		if block.Type == "text" {
+			b.WriteString(block.Text)
+		}
+	}
+	return b.String()
+}
+
+func claudeDelta(emitted, current string) string {
+	switch {
+	case strings.HasPrefix(current, emitted):
+		return current[len(emitted):]
+	case strings.HasPrefix(emitted, current):
+		return ""
+	default:
+		return current
 	}
 }

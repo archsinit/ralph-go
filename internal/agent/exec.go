@@ -18,8 +18,7 @@ func runStreaming(ctx context.Context, name string, args []string, stdin string)
 	results := make(chan Result, 1)
 
 	go func() {
-		defer close(tokens)
-		defer close(results)
+		var result Result
 
 		cmd := exec.CommandContext(ctx, name, args...)
 
@@ -28,7 +27,10 @@ func runStreaming(ctx context.Context, name string, args []string, stdin string)
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
-			results <- Result{Err: fmt.Errorf("stdout pipe: %w", err)}
+			result = Result{Err: fmt.Errorf("stdout pipe: %w", err)}
+			close(tokens)
+			results <- result
+			close(results)
 			return
 		}
 
@@ -37,27 +39,52 @@ func runStreaming(ctx context.Context, name string, args []string, stdin string)
 		}
 
 		if err := cmd.Start(); err != nil {
-			results <- Result{Err: fmt.Errorf("start: %w", err)}
+			result = Result{Err: fmt.Errorf("start: %w", err)}
+			close(tokens)
+			results <- result
+			close(results)
 			return
 		}
 
 		scanner := bufio.NewScanner(stdout)
 		scanner.Split(bufio.ScanLines)
+
+		cancelled := false
+	scanLoop:
 		for scanner.Scan() {
 			line := scanner.Text()
 			select {
 			case <-ctx.Done():
+				cancelled = true
+				break scanLoop
 			case tokens <- Token{Text: line + "\n"}:
 			}
 		}
 
-		waitErr := cmd.Wait()
-		if waitErr != nil {
-			tail := stderrTail(stderrBuf.String(), 512)
-			results <- Result{Err: fmt.Errorf("exit: %w; stderr: %s", waitErr, tail)}
-			return
+		scanErr := scanner.Err()
+		if scanErr != nil && cmd.Process != nil {
+			_ = cmd.Process.Kill()
 		}
-		results <- Result{}
+
+		close(tokens)
+
+		waitErr := cmd.Wait()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			result = Result{Err: ctxErr}
+		} else if cancelled {
+			result = Result{Err: context.Canceled}
+		} else if scanErr != nil && waitErr != nil {
+			tail := stderrTail(stderrBuf.String(), 512)
+			result = Result{Err: fmt.Errorf("scanner: %w; exit: %v; stderr: %s", scanErr, waitErr, tail)}
+		} else if scanErr != nil {
+			result = Result{Err: fmt.Errorf("scanner: %w", scanErr)}
+		} else if waitErr != nil {
+			tail := stderrTail(stderrBuf.String(), 512)
+			result = Result{Err: fmt.Errorf("exit: %w; stderr: %s", waitErr, tail)}
+		}
+
+		results <- result
+		close(results)
 	}()
 
 	return tokens, results
@@ -69,3 +96,5 @@ func stderrTail(s string, n int) string {
 	}
 	return s[len(s)-n:]
 }
+
+var streamCommand = runStreaming

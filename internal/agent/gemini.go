@@ -18,8 +18,9 @@ func (a *geminiAdapter) Capabilities() Capabilities {
 }
 
 // buildGeminiArgs constructs CLI args for a non-interactive gemini invocation.
+// Gemini CLI does not expose a stable resume flag; transcript is included via replay.
+// TODO: verify exact non-interactive flags for current gemini CLI version.
 func buildGeminiArgs(req Request) []string {
-	// TODO: verify exact non-interactive flags for current gemini CLI version
 	args := []string{
 		"--no-interactive",
 	}
@@ -27,7 +28,12 @@ func buildGeminiArgs(req Request) []string {
 		// TODO: verify system-prompt flag name for gemini CLI
 		args = append(args, "--system", req.SystemPrompt)
 	}
-	args = append(args, req.NewMessage)
+	msg := req.NewMessage
+	// gemini has no resume; include transcript context via replay rendering
+	if len(req.Transcript) > 0 {
+		msg = renderReplay(req)
+	}
+	args = append(args, msg)
 	return args
 }
 
@@ -36,21 +42,28 @@ func (a *geminiAdapter) Invoke(ctx context.Context, req Request) (<-chan Token, 
 	results := make(chan Result, 1)
 
 	go func() {
-		defer close(tokens)
-		defer close(results)
+		rawTokens, rawResults := streamCommand(ctx, "gemini", buildGeminiArgs(req), "")
 
-		rawTokens, rawResults := runStreaming(ctx, "gemini", buildGeminiArgs(req), "")
-
+		var cancelled bool
 		for t := range rawTokens {
-			select {
-			case <-ctx.Done():
-				drain(rawTokens)
-				return
-			case tokens <- t:
+			if !sendAdapterToken(ctx, rawTokens, tokens, t) {
+				cancelled = true
+				break
 			}
 		}
 
-		results <- <-rawResults
+		close(tokens)
+
+		var r Result
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			r = Result{Err: ctxErr}
+		} else if !cancelled {
+			r = <-rawResults
+		} else {
+			r = Result{Err: context.Canceled}
+		}
+		results <- r
+		close(results)
 	}()
 
 	return tokens, results

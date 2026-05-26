@@ -38,9 +38,9 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 2.5 — adapter correctness follow-up
 
-- [ ] Fix adapter stream contract and replay fallback → tasks/20a-fix-adapter-stream-contract-and-replay.md
-- [ ] Align real CLI adapter arguments with installed CLIs → tasks/20b-align-real-cli-adapter-arguments.md
-- [ ] reviewer: REVIEW: phase 2.5 adapter readiness → tasks/20c-review-phase-2-5-adapter-readiness.md
+- [x] Fix adapter stream contract and replay fallback → tasks/20a-fix-adapter-stream-contract-and-replay.md
+- [x] Align real CLI adapter arguments with installed CLIs → tasks/20b-align-real-cli-adapter-arguments.md
+- [x] reviewer: REVIEW: phase 2.5 adapter readiness → tasks/20c-review-phase-2-5-adapter-readiness.md
 
 ## Phase 3 — session and persistence
 
