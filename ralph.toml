@@ -1,0 +1,41 @@
+# ralph-go config. Lives in the active project root.
+
+# --- Agents (roster) ---
+# Each agent maps to a CLI and carries a role system prompt.
+[[agents]]
+name = "claude"
+cli = "claude"            # one of: claude, codex, gemini, opencode, echo
+enabled = true
+system_prompt = "You are a pragmatic software architect. Push for clear, atomic, testable plans. Disagree when warranted."
+
+[[agents]]
+name = "codex"
+cli = "codex"
+enabled = true
+system_prompt = "You are a critical implementation reviewer. Probe edge cases, scope creep, and missing tests."
+
+# --- Plan mode (chatroom) ---
+[plan]
+turn_order = ["claude", "codex", "user"]   # round-robin; "user" is you
+plan_agent = "claude"                       # who answers /plan with the JSON task list
+
+# --- Loop mode (executor + reviewer) ---
+[loop]
+executor    = "claude"   # runs each task headless (use a cheap model in practice)
+reviewer    = "codex"    # checks result vs "Done when", writes commit message
+max_retries = 2          # reviewer-fail retries before halt+alert
+task_timeout = "15m"     # per-task hard limit; exceed -> kill + alert + halt
+
+[loop.git]
+commit_prefix = ""       # optional prefix prepended to each commit subject
+
+[loop.ntfy]
+server = "https://ntfy.sh"
+topic  = "CHANGE-ME"     # required; pick a private, hard-to-guess topic
+token  = ""              # optional bearer token for protected topics
+
+# --- Paths (relative to project root) ---
+[paths]
+session_dir = ".ralph/sessions"   # plan transcripts + agent session ids
+log_dir     = ".ralph/logs"       # master.log + per-task logs
+out_dir     = "."                 # where plan.md + tasks/ are written
