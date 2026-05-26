@@ -44,20 +44,32 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 3 — session and persistence
 
-- [ ] Define transcript and session model → tasks/21-define-transcript-and-session-model.md
-- [ ] Implement append and flush writer → tasks/22-implement-append-and-flush-writer.md
-- [ ] Implement load and resume → tasks/23-implement-load-and-resume.md
-- [ ] executor: TEST: session round-trip and resume → tasks/24-test-session-round-trip-and-resume.md
-- [ ] reviewer: REVIEW: crash-safety of session → tasks/25-review-crash-safety-of-session.md
+- [x] Define transcript and session model → tasks/21-define-transcript-and-session-model.md
+- [x] Implement append and flush writer → tasks/22-implement-append-and-flush-writer.md
+- [x] Implement load and resume → tasks/23-implement-load-and-resume.md
+- [x] executor: TEST: session round-trip and resume → tasks/24-test-session-round-trip-and-resume.md
+- [x] reviewer: REVIEW: crash-safety of session → tasks/25-review-crash-safety-of-session.md
+
+## Phase 3.5 — session crash-safety follow-up
+
+- [x] Harden session persistence edge cases → tasks/25a-harden-session-persistence-edge-cases.md
+- [x] reviewer: REVIEW: phase 3.5 session durability readiness → tasks/25b-review-phase-3-5-session-durability-readiness.md
 
 ## Phase 4 — plan TUI
 
-- [ ] Build TUI model skeleton → tasks/26-build-tui-model-skeleton.md
-- [ ] Render messages with per-author styling → tasks/27-render-messages-with-per-author-styling.md
-- [ ] Stream tokens into in-progress message → tasks/28-stream-tokens-into-in-progress-message.md
-- [ ] Add turn/status indicator → tasks/29-add-turn-status-indicator.md
-- [ ] executor: TEST: TUI model updates → tasks/30-test-tui-model-updates.md
-- [ ] reviewer: REVIEW: TUI interaction by hand → tasks/31-review-tui-interaction-by-hand.md
+- [x] Build TUI model skeleton → tasks/26-build-tui-model-skeleton.md
+- [x] Render messages with per-author styling → tasks/27-render-messages-with-per-author-styling.md
+- [x] Stream tokens into in-progress message → tasks/28-stream-tokens-into-in-progress-message.md
+- [x] Add turn/status indicator → tasks/29-add-turn-status-indicator.md
+- [x] executor: TEST: TUI model updates → tasks/30-test-tui-model-updates.md
+- [x] reviewer: REVIEW: TUI interaction by hand → tasks/31-review-tui-interaction-by-hand.md
+
+## Phase 4.5 — TUI/session readiness follow-up
+
+- [ ] Fix TUI orchestrator-facing API and submit contract → tasks/31a-fix-tui-external-event-and-submit-hooks.md
+- [ ] Fix TUI viewport, spinner, rendering, and harness behavior → tasks/31b-fix-tui-scrolling-autoscroll-and-spinner-behavior.md
+- [ ] Harden remaining session sequence and durability edge cases → tasks/31c-harden-remaining-session-durability-edge-cases.md
+- [ ] reviewer: REVIEW: phase 4.5 readiness for orchestrator → tasks/31d-review-phase-4-5-readiness-for-orchestrator.md
 
 ## Phase 5 — plan orchestrator
 
