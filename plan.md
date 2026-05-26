@@ -4,11 +4,11 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 0 — scaffold
 
-- [ ] Init Go module and repo skeleton → tasks/01-init-go-module-and-repo-skeleton.md
-- [ ] Add dependencies → tasks/02-add-dependencies.md
-- [ ] Create directory layout → tasks/03-create-directory-layout.md
-- [ ] Wire cobra root and subcommands → tasks/04-wire-cobra-root-and-subcommands.md
-- [ ] reviewer: REVIEW: scaffold compiles and is wired → tasks/05-review-scaffold-compiles-and-is-wired.md
+- [x] Init Go module and repo skeleton → tasks/01-init-go-module-and-repo-skeleton.md
+- [x] Add dependencies → tasks/02-add-dependencies.md
+- [x] Create directory layout → tasks/03-create-directory-layout.md
+- [x] Wire cobra root and subcommands → tasks/04-wire-cobra-root-and-subcommands.md
+- [x] reviewer: REVIEW: scaffold compiles and is wired → tasks/05-review-scaffold-compiles-and-is-wired.md
 
 ## Phase 1 — config
 
