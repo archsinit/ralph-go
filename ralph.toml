@@ -1,41 +1,51 @@
-# ralph-go config. Lives in the active project root.
+# ralph-go example configuration
+# This file demonstrates the structure of a ralph.toml config.
 
-# --- Agents (roster) ---
-# Each agent maps to a CLI and carries a role system prompt.
-[[agents]]
+# Agents: Define available LLM agents
+[[agent]]
 name = "claude"
-cli = "claude"            # one of: claude, codex, gemini, opencode, echo
+cli = "claude"
+system_prompt = "You are Claude, helping with software engineering tasks."
 enabled = true
-system_prompt = "You are a pragmatic software architect. Push for clear, atomic, testable plans. Disagree when warranted."
 
-[[agents]]
+[[agent]]
 name = "codex"
 cli = "codex"
+system_prompt = "You are a code reviewer, focused on quality and best practices."
 enabled = true
-system_prompt = "You are a critical implementation reviewer. Probe edge cases, scope creep, and missing tests."
 
-# --- Plan mode (chatroom) ---
+# Plan mode configuration
 [plan]
-turn_order = ["claude", "codex", "user"]   # round-robin; "user" is you
-plan_agent = "claude"                       # who answers /plan with the JSON task list
+# TurnOrder: list of agent names that take turns, plus the literal "user"
+turn_order = ["claude", "codex", "user"]
+# PlanAgent: which agent responds to /plan command
+plan_agent = "claude"
 
-# --- Loop mode (executor + reviewer) ---
+# Loop mode configuration
 [loop]
-executor    = "claude"   # runs each task headless (use a cheap model in practice)
-reviewer    = "codex"    # checks result vs "Done when", writes commit message
-max_retries = 2          # reviewer-fail retries before halt+alert
-task_timeout = "15m"     # per-task hard limit; exceed -> kill + alert + halt
+# Executor: agent that runs tasks
+executor = "claude"
+# Reviewer: agent that reviews completed tasks
+reviewer = "codex"
+# MaxRetries: maximum retries on task failure
+max_retries = 2
+# TaskTimeout: how long each task can run (15m, 1h, 30s, etc)
+task_timeout = "15m"
 
-[loop.git]
-commit_prefix = ""       # optional prefix prepended to each commit subject
-
+# ntfy.sh notification settings
 [loop.ntfy]
 server = "https://ntfy.sh"
-topic  = "CHANGE-ME"     # required; pick a private, hard-to-guess topic
-token  = ""              # optional bearer token for protected topics
+# CHANGE-ME to your actual ntfy topic
+topic = "CHANGE-ME"
+token = ""
 
-# --- Paths (relative to project root) ---
+# Git integration settings
+[loop.git]
+# Optional commit prefix for auto-commits
+commit_prefix = ""
+
+# Output directories
 [paths]
-session_dir = ".ralph/sessions"   # plan transcripts + agent session ids
-log_dir     = ".ralph/logs"       # master.log + per-task logs
-out_dir     = "."                 # where plan.md + tasks/ are written
+session_dir = ".ralph/sessions"
+log_dir = ".ralph/logs"
+out_dir = "."

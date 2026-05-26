@@ -12,12 +12,17 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 1 — config
 
-- [ ] Define config structs → tasks/06-define-config-structs.md
-- [ ] Implement TOML config loader → tasks/07-implement-toml-config-loader.md
-- [ ] Implement config validation → tasks/08-implement-config-validation.md
-- [ ] Write example ralph.toml → tasks/09-write-example-ralph-toml.md
-- [ ] executor: TEST: config parse and validation → tasks/10-test-config-parse-and-validation.md
-- [ ] reviewer: REVIEW: config error UX → tasks/11-review-config-error-ux.md
+- [x] Define config structs → tasks/06-define-config-structs.md
+- [x] Implement TOML config loader → tasks/07-implement-toml-config-loader.md
+- [x] Implement config validation → tasks/08-implement-config-validation.md
+- [x] Write example ralph.toml → tasks/09-write-example-ralph-toml.md
+- [x] executor: TEST: config parse and validation → tasks/10-test-config-parse-and-validation.md
+- [x] reviewer: REVIEW: config error UX → tasks/11-review-config-error-ux.md
+
+## Phase 1.5 — config review follow-up
+
+- [x] Fix config required-field validation and gofmt drift → tasks/11a-fix-config-required-fields-and-gofmt.md
+- [x] reviewer: REVIEW: phase 1.5 config readiness → tasks/11b-review-phase-1-5-config-readiness.md
 
 ## Phase 2 — agent adapter
 
