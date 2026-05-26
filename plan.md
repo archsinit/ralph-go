@@ -26,15 +26,21 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 2 — agent adapter
 
-- [ ] Define Adapter interface and types → tasks/12-define-adapter-interface-and-types.md
-- [ ] Implement exec runner helper → tasks/13-implement-exec-runner-helper.md
-- [ ] Implement claude adapter → tasks/14-implement-claude-adapter.md
-- [ ] Implement codex adapter → tasks/15-implement-codex-adapter.md
-- [ ] Implement gemini and opencode adapters → tasks/16-implement-gemini-and-opencode-adapters.md
-- [ ] Implement transcript replay fallback → tasks/17-implement-transcript-replay-fallback.md
-- [ ] Implement registry and echo adapter → tasks/18-implement-registry-and-echo-adapter.md
-- [ ] executor: TEST: adapter flag building and echo streaming → tasks/19-test-adapter-flag-building-and-echo-streaming.md
-- [ ] reviewer: REVIEW: real claude one-shot streams → tasks/20-review-real-claude-one-shot-streams.md
+- [x] Define Adapter interface and types → tasks/12-define-adapter-interface-and-types.md
+- [x] Implement exec runner helper → tasks/13-implement-exec-runner-helper.md
+- [x] Implement claude adapter → tasks/14-implement-claude-adapter.md
+- [x] Implement codex adapter → tasks/15-implement-codex-adapter.md
+- [x] Implement gemini and opencode adapters → tasks/16-implement-gemini-and-opencode-adapters.md
+- [x] Implement transcript replay fallback → tasks/17-implement-transcript-replay-fallback.md
+- [x] Implement registry and echo adapter → tasks/18-implement-registry-and-echo-adapter.md
+- [x] executor: TEST: adapter flag building and echo streaming → tasks/19-test-adapter-flag-building-and-echo-streaming.md
+- [x] reviewer: REVIEW: real claude one-shot streams → tasks/20-review-real-claude-one-shot-streams.md
+
+## Phase 2.5 — adapter correctness follow-up
+
+- [ ] Fix adapter stream contract and replay fallback → tasks/20a-fix-adapter-stream-contract-and-replay.md
+- [ ] Align real CLI adapter arguments with installed CLIs → tasks/20b-align-real-cli-adapter-arguments.md
+- [ ] reviewer: REVIEW: phase 2.5 adapter readiness → tasks/20c-review-phase-2-5-adapter-readiness.md
 
 ## Phase 3 — session and persistence
 

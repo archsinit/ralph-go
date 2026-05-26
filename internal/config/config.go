@@ -78,6 +78,7 @@ var KnownCLIs = map[string]bool{
 	"codex":    true,
 	"gemini":   true,
 	"opencode": true,
+	"echo":     true,
 }
 
 // Load reads and decodes a TOML config file into Config.
