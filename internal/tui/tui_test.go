@@ -50,39 +50,48 @@ func TestWindowSizeMsg(t *testing.T) {
 	}
 }
 
-func TestQuitKey(t *testing.T) {
-	m := NewModel()
+func TestCancelKey(t *testing.T) {
+	cancelCalled := false
+	m := NewModel(WithCancelCallback(func() {
+		cancelCalled = true
+	}))
 	// Create a KeyMsg for Ctrl+C
 	msg := tea.KeyMsg{Type: tea.KeyCtrlC, Alt: false}
 	m2, cmd := m.Update(msg)
-	if cmd == nil {
-		t.Error("Update should return tea.Quit command for ctrl+c")
+	if cmd != nil {
+		t.Error("Update should return nil for ctrl+c (handled by callback)")
+	}
+	if !cancelCalled {
+		t.Error("Cancel callback should be called")
 	}
 	_ = m2
 }
 
 func TestEnterKey(t *testing.T) {
-	m := NewModel()
+	var submitted string
+	m := NewModel(WithSubmitCallback(func(text string) {
+		submitted = text
+	}))
 	m.input.SetValue("hello")
 
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
 	m2, cmd := m.Update(msg)
-	if cmd != nil {
-		t.Error("Update should not return a command for enter key")
+	if cmd == nil {
+		t.Error("Update should return a command for enter key")
 	}
 
-	model := m2.(*Model)
-	if len(model.messages) != 1 {
-		t.Errorf("expected 1 message, got %d", len(model.messages))
+	// Process the command to get the msgSubmit
+	if cmd != nil {
+		submitMsg := cmd()
+		m3, _ := m2.(*Model).Update(submitMsg)
+		model := m3.(*Model)
+		if model.input.Value() != "" {
+			t.Errorf("expected input to be reset, got %q", model.input.Value())
+		}
 	}
-	if model.messages[0].Text != "hello" {
-		t.Errorf("expected message text 'hello', got %q", model.messages[0].Text)
-	}
-	if model.messages[0].Author != "user" {
-		t.Errorf("expected message author 'user', got %q", model.messages[0].Author)
-	}
-	if model.input.Value() != "" {
-		t.Errorf("expected input to be reset, got %q", model.input.Value())
+
+	if submitted != "hello" {
+		t.Errorf("expected submitted text 'hello', got %q", submitted)
 	}
 }
 
@@ -135,8 +144,8 @@ func TestAuthorStyling(t *testing.T) {
 	m2, _ := m.Update(msg)
 
 	model := m2.(*Model)
-	model.messages = append(model.messages, renderedMsg{Author: "user", Text: "test"})
-	model.messages = append(model.messages, renderedMsg{Author: "claude", Text: "response"})
+	model.messages = append(model.messages, Message{Author: "user", Text: "test"})
+	model.messages = append(model.messages, Message{Author: "claude", Text: "response"})
 
 	model.updateViewport()
 	// Check that messages were added and viewport was updated
@@ -151,7 +160,7 @@ func TestAutoScrollOnNewMessage(t *testing.T) {
 	m2, _ := m.Update(msg)
 
 	model := m2.(*Model)
-	model.messages = append(model.messages, renderedMsg{Author: "user", Text: "test"})
+	model.messages = append(model.messages, Message{Author: "user", Text: "test"})
 	model.updateViewport()
 
 	// After adding a message, userScrolled should be false (unless manually set)
@@ -184,7 +193,7 @@ func TestStreamMessages(t *testing.T) {
 	model := m2.(*Model)
 
 	// Test stream start
-	startMsg := msgStreamStart{author: "claude"}
+	startMsg := StreamStart{Author: "claude"}
 	m3, _ := model.Update(startMsg)
 	model = m3.(*Model)
 
@@ -196,7 +205,7 @@ func TestStreamMessages(t *testing.T) {
 	}
 
 	// Test stream token
-	tokenMsg := msgStreamToken{text: "hello"}
+	tokenMsg := StreamToken{Text: "hello"}
 	m4, _ := model.Update(tokenMsg)
 	model = m4.(*Model)
 
@@ -205,7 +214,7 @@ func TestStreamMessages(t *testing.T) {
 	}
 
 	// Test another token
-	tokenMsg2 := msgStreamToken{text: " world"}
+	tokenMsg2 := StreamToken{Text: " world"}
 	m5, _ := model.Update(tokenMsg2)
 	model = m5.(*Model)
 
@@ -213,16 +222,28 @@ func TestStreamMessages(t *testing.T) {
 		t.Errorf("inProgressText should be 'hello world', got %q", model.inProgressText)
 	}
 
-	// Test stream end
-	endMsg := msgStreamEnd{}
+	// Test stream end - StreamEnd only clears the in-progress stream
+	endMsg := StreamEnd{}
 	m6, _ := model.Update(endMsg)
 	model = m6.(*Model)
 
 	if model.isStreaming {
 		t.Error("isStreaming should be false after stream end")
 	}
+	if model.inProgressAuthor != "" {
+		t.Errorf("inProgressAuthor should be empty after stream end, got %q", model.inProgressAuthor)
+	}
+	if model.inProgressText != "" {
+		t.Errorf("inProgressText should be empty after stream end, got %q", model.inProgressText)
+	}
+
+	// The engine (not StreamEnd) adds the message via AddMessage
+	addMsg := msgAddMessage{author: "claude", text: "hello world"}
+	m7, _ := model.Update(addMsg)
+	model = m7.(*Model)
+
 	if len(model.messages) != 1 {
-		t.Errorf("expected 1 message after stream end, got %d", len(model.messages))
+		t.Errorf("expected 1 message after AddMessage, got %d", len(model.messages))
 	}
 	if model.messages[0].Author != "claude" || model.messages[0].Text != "hello world" {
 		t.Errorf("message not finalized correctly: %+v", model.messages[0])
@@ -243,7 +264,7 @@ func TestStatusIndicator(t *testing.T) {
 	}
 
 	// Test status during streaming
-	startMsg := msgStreamStart{author: "claude"}
+	startMsg := StreamStart{Author: "claude"}
 	m3, _ := model.Update(startMsg)
 	model = m3.(*Model)
 

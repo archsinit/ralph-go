@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -11,37 +12,47 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderedMsg represents a message ready for display in the viewport.
-type renderedMsg struct {
+// Message represents a message to display in the transcript.
+type Message struct {
 	Author string
 	Text   string
 }
 
-// Stream message types for feeding tokens into the TUI.
-type msgStreamStart struct {
-	author string
+// StreamStart starts rendering a streamed message from the given author.
+type StreamStart struct {
+	Author string
 }
 
-type msgStreamToken struct {
+// StreamToken adds a token to the in-progress streamed message.
+type StreamToken struct {
+	Text string
+}
+
+// StreamEnd finalizes the in-progress streamed message.
+type StreamEnd struct{}
+
+// msgSubmit is an internal message sent when the user presses Enter.
+type msgSubmit struct {
 	text string
 }
 
-type msgStreamEnd struct {}
+// colorPalette is a list of distinct colors for authors.
+var colorPalette = []string{"10", "12", "11", "9", "13", "14", "15"}
 
-// authorColors maps author names to lipgloss styles.
-var authorColors = map[string]lipgloss.Style{
-	"user":  lipgloss.NewStyle().Foreground(lipgloss.Color("10")),  // Green
-	"claude": lipgloss.NewStyle().Foreground(lipgloss.Color("12")), // Blue
-	"codex": lipgloss.NewStyle().Foreground(lipgloss.Color("11")),  // Cyan
-}
-
-// getAuthorStyle returns a lipgloss style for the given author.
-func getAuthorStyle(author string) lipgloss.Style {
-	if style, ok := authorColors[author]; ok {
+// getAuthorStyle returns a lipgloss style for the given author, assigning a new color on first appearance.
+func (m *Model) getAuthorStyle(author string) lipgloss.Style {
+	if style, ok := m.authorColors[author]; ok {
 		return style
 	}
-	// Default to yellow for unknown authors.
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+
+	// Assign a new color from the palette
+	colorIdx := len(m.authorList) % len(colorPalette)
+	color := colorPalette[colorIdx]
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+	m.authorColors[author] = style
+	m.authorList = append(m.authorList, author)
+
+	return style
 }
 
 // Model is the TUI model for the plan mode chatroom.
@@ -54,16 +65,20 @@ type Model struct {
 	width  int
 	height int
 
-	messages         []renderedMsg
+	messages         []Message
 	userScrolled     bool // Track if user has manually scrolled up
 	lastViewSize     int  // Track content size to detect new messages
 	inProgressAuthor string
 	inProgressText   string
 	isStreaming      bool
+	onSubmit         func(text string) // Called when user presses Enter
+	onCancel         func()            // Called when user presses ctrl+c
+	authorColors     map[string]lipgloss.Style
+	authorList       []string // Track order of first appearance for consistent coloring
 }
 
-// NewModel creates a new TUI model.
-func NewModel() *Model {
+// NewModel creates a new TUI model with optional initial messages and a submit callback.
+func NewModel(opts ...Option) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Enter your message..."
 	ti.Focus()
@@ -72,10 +87,44 @@ func NewModel() *Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
 
-	return &Model{
-		input:    ti,
-		spinner:  s,
-		messages: []renderedMsg{},
+	m := &Model{
+		input:        ti,
+		spinner:      s,
+		messages:     []Message{},
+		onSubmit:     func(string) {}, // Default no-op
+		onCancel:     func() {},       // Default no-op
+		authorColors: make(map[string]lipgloss.Style),
+		authorList:   []string{},
+	}
+
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	return m
+}
+
+// Option is a functional option for configuring NewModel.
+type Option func(*Model)
+
+// WithSubmitCallback sets a callback function for when the user submits text.
+func WithSubmitCallback(cb func(text string)) Option {
+	return func(m *Model) {
+		m.onSubmit = cb
+	}
+}
+
+// WithCancelCallback sets a callback function for when the user presses ctrl+c during streaming.
+func WithCancelCallback(cb func()) Option {
+	return func(m *Model) {
+		m.onCancel = cb
+	}
+}
+
+// WithInitialMessages sets the initial transcript to display.
+func WithInitialMessages(msgs []Message) Option {
+	return func(m *Model) {
+		m.messages = append([]Message{}, msgs...) // Copy to avoid external mutation
 	}
 }
 
@@ -91,79 +140,90 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		// Clamp dimensions for small terminals (min 5 lines for viewport, 3 for status/input)
+		viewportHeight := msg.Height - 3
+		if viewportHeight < 5 {
+			viewportHeight = 5
+		}
+
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 3 // Reserve space for input
+		m.viewport.Height = viewportHeight
 
 		m.input.Width = msg.Width
 
 		// Re-wrap viewport content on resize
 		m.updateViewport()
 
-	case msgStreamStart:
-		m.inProgressAuthor = msg.author
+	case StreamStart:
+		m.inProgressAuthor = msg.Author
 		m.inProgressText = ""
 		m.isStreaming = true
 		m.userScrolled = false
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(nil)
 		m.updateViewport()
-		return m, cmd
+		return m, m.spinner.Tick
 
-	case msgStreamToken:
-		m.inProgressText += msg.text
+	case StreamToken:
+		m.inProgressText += msg.Text
 		m.updateViewport()
 
-	case msgStreamEnd:
-		if m.isStreaming && m.inProgressAuthor != "" {
-			m.messages = append(m.messages, renderedMsg{
-				Author: m.inProgressAuthor,
-				Text:   m.inProgressText,
-			})
-			m.inProgressAuthor = ""
-			m.inProgressText = ""
-			m.isStreaming = false
-			m.updateViewport()
-		}
+	case StreamEnd:
+		// StreamEnd only clears the in-progress stream; the engine will call AddMessage
+		// to persist the message after handling it (for crash-safety and model ownership)
+		m.inProgressAuthor = ""
+		m.inProgressText = ""
+		m.isStreaming = false
+		m.updateViewport()
+
+	case msgSubmit:
+		// Don't add the message locally; the orchestrator is responsible.
+		// Call the submit callback to notify the orchestrator.
+		m.onSubmit(msg.text)
+		m.input.Reset()
+		m.userScrolled = false
+
+	case msgAddMessage:
+		m.messages = append(m.messages, Message{
+			Author: msg.author,
+			Text:   msg.text,
+		})
+		m.updateViewport()
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			return m, tea.Quit
+			// Signal cancel to orchestrator; it decides whether to quit or retry
+			m.onCancel()
+			return m, nil
 		case "enter":
 			if m.input.Value() != "" {
-				m.messages = append(m.messages, renderedMsg{
-					Author: "user",
-					Text:   m.input.Value(),
-				})
-				m.input.Reset()
-				m.userScrolled = false
-				m.updateViewport()
+				return m, func() tea.Msg {
+					return msgSubmit{text: m.input.Value()}
+				}
 			}
-		case "up", "pgup":
-			// Detect when user scrolls up
-			m.userScrolled = true
-		case "down", "pgdn":
-			// Check if we're near the bottom
-			if m.viewport.AtBottom() {
-				m.userScrolled = false
-			}
+		case "up", "pgup", "down", "pgdn", "home", "end":
+			// Forward scroll keys to viewport
+			m.viewport, _ = m.viewport.Update(msg)
+			// Track userScrolled based on actual viewport position
+			m.userScrolled = !m.viewport.AtBottom()
+			return m, nil
 		}
 	}
 
-	// Handle spinner ticks during streaming
-	if m.isStreaming {
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		if cmd != nil {
-			var inputCmd tea.Cmd
-			m.input, inputCmd = m.input.Update(msg)
-			return m, tea.Batch(cmd, inputCmd)
-		}
-	}
-
+	// Handle spinner and input
 	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
-	return m, cmd
+	if m.isStreaming {
+		m.spinner, cmd = m.spinner.Update(msg)
+	}
+
+	var inputCmd tea.Cmd
+	m.input, inputCmd = m.input.Update(msg)
+
+	if cmd != nil && inputCmd != nil {
+		return m, tea.Batch(cmd, inputCmd)
+	} else if cmd != nil {
+		return m, cmd
+	}
+	return m, inputCmd
 }
 
 // View renders the model to the screen.
@@ -199,7 +259,7 @@ func (m *Model) View() string {
 func (m *Model) updateViewport() {
 	var content strings.Builder
 	for _, msg := range m.messages {
-		authorStyle := getAuthorStyle(msg.Author)
+		authorStyle := m.getAuthorStyle(msg.Author)
 		label := authorStyle.Render(msg.Author + ":")
 
 		// Wrap text to viewport width, accounting for author label
@@ -220,7 +280,7 @@ func (m *Model) updateViewport() {
 
 	// Append in-progress message if streaming
 	if m.isStreaming && m.inProgressAuthor != "" {
-		authorStyle := getAuthorStyle(m.inProgressAuthor)
+		authorStyle := m.getAuthorStyle(m.inProgressAuthor)
 		label := authorStyle.Render(m.inProgressAuthor + ":")
 
 		lines := wrapText(m.inProgressText, m.viewport.Width-4)
@@ -252,7 +312,7 @@ func (m *Model) updateViewport() {
 	m.lastViewSize = len(contentStr)
 }
 
-// wrapText wraps text to the specified width.
+// wrapText wraps text to the specified width, breaking long unbroken tokens if needed.
 func wrapText(text string, width int) []string {
 	if width <= 0 {
 		width = 80
@@ -273,15 +333,28 @@ func wrapText(text string, width int) []string {
 		testLine += word
 
 		if len(testLine) <= width {
+			// Word fits on current line
 			if currentLine.Len() > 0 {
 				currentLine.WriteString(" ")
 			}
 			currentLine.WriteString(word)
-		} else {
-			if currentLine.Len() > 0 {
-				lines = append(lines, currentLine.String())
+		} else if currentLine.Len() == 0 {
+			// Word doesn't fit and line is empty: break the word
+			for len(word) > width {
+				lines = append(lines, word[:width])
+				word = word[width:]
 			}
+			currentLine.WriteString(word)
+		} else {
+			// Word doesn't fit but line has content: start new line
+			lines = append(lines, currentLine.String())
 			currentLine.Reset()
+
+			// If word itself is too long, break it
+			for len(word) > width {
+				lines = append(lines, word[:width])
+				word = word[width:]
+			}
 			currentLine.WriteString(word)
 		}
 	}
@@ -293,27 +366,87 @@ func wrapText(text string, width int) []string {
 	return lines
 }
 
-// Run starts the TUI and blocks until the user quits.
-func Run() error {
-	m := NewModel()
-	p := tea.NewProgram(m, tea.WithAltScreen())
-	m.program = p
-	_, err := p.Run()
-	return err
+// Handle is a handle to a running TUI program that allows external code to interact with it.
+type Handle struct {
+	program *tea.Program
+	model   *Model
+	mu      sync.RWMutex // Protects program and model access
+	errCh   chan error
 }
 
-// StreamTokens feeds tokens from a channel into the model.
-// Call this in a goroutine alongside the model's Run method.
-func (m *Model) StreamTokens(author string, tokenChan <-chan string) {
-	if m.program == nil {
-		return
+// StartStream notifies the TUI that a stream from the given author is starting.
+func (h *Handle) StartStream(author string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.program != nil {
+		h.program.Send(StreamStart{Author: author})
 	}
+}
 
-	m.program.Send(msgStreamStart{author: author})
-
-	for token := range tokenChan {
-		m.program.Send(msgStreamToken{text: token})
+// SendToken sends a token to the in-progress stream.
+func (h *Handle) SendToken(text string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.program != nil {
+		h.program.Send(StreamToken{Text: text})
 	}
+}
 
-	m.program.Send(msgStreamEnd{})
+// EndStream finalizes the in-progress stream.
+func (h *Handle) EndStream() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.program != nil {
+		h.program.Send(StreamEnd{})
+	}
+}
+
+// AddMessage appends a finalized message to the transcript.
+// Author and Text are required; Text may be empty.
+func (h *Handle) AddMessage(author, text string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.program != nil {
+		h.program.Send(msgAddMessage{author: author, text: text})
+	}
+}
+
+// Wait blocks until the TUI program exits and returns any error.
+func (h *Handle) Wait() error {
+	return <-h.errCh
+}
+
+// Quit sends a quit signal to the TUI program.
+func (h *Handle) Quit() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.program != nil {
+		h.program.Send(tea.Quit())
+	}
+}
+
+// msgAddMessage is an internal message to add a message to the transcript.
+type msgAddMessage struct {
+	author string
+	text   string
+}
+
+// Run starts the TUI with the given options and returns a Handle to control it immediately.
+// The TUI runs in a background goroutine. Call Handle.Wait() to wait for it to exit.
+func Run(opts ...Option) (*Handle, error) {
+	m := NewModel(opts...)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	m.program = p
+	h := &Handle{program: p, model: m, errCh: make(chan error, 1)}
+
+	// Run the program in a goroutine so this returns immediately
+	go func() {
+		_, err := p.Run()
+		h.mu.Lock()
+		h.program = nil // Clear program to indicate it has exited
+		h.mu.Unlock()
+		h.errCh <- err
+	}()
+
+	return h, nil
 }

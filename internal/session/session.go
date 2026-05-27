@@ -73,7 +73,12 @@ func (s *Session) loadMessages() error {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	// Increase buffer size to handle large JSONL entries (up to 1MB).
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
 	lineNum := 0
+	lastValidSeq := -1
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Bytes()
@@ -92,17 +97,17 @@ func (s *Session) loadMessages() error {
 			break
 		}
 		s.Messages = append(s.Messages, m)
+		lastValidSeq = m.Seq
 	}
 	if err := scanner.Err(); err != nil {
 		return err
 	}
 
-	// Track the next sequence number based on the highest sequence in loaded messages.
-	s.nextSeq = 0
-	for _, m := range s.Messages {
-		if m.Seq >= s.nextSeq {
-			s.nextSeq = m.Seq + 1
-		}
+	// Track the next sequence number: use last valid loaded message's Seq + 1.
+	if lastValidSeq >= 0 {
+		s.nextSeq = lastValidSeq + 1
+	} else {
+		s.nextSeq = 0
 	}
 
 	return nil
@@ -129,12 +134,18 @@ func (s *Session) Append(m Message) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	if err := json.NewEncoder(f).Encode(m); err != nil {
+		f.Close()
 		return err
 	}
 	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+
+	// Close file and check for errors before updating memory.
+	if err := f.Close(); err != nil {
 		return err
 	}
 
@@ -146,7 +157,7 @@ func (s *Session) Append(m Message) error {
 		}
 	}
 
-	// Only update in-memory state after successful write and sync to disk.
+	// Only update in-memory state after successful write, sync, and close to disk.
 	s.Messages = append(s.Messages, m)
 	s.nextSeq++
 
@@ -155,9 +166,14 @@ func (s *Session) Append(m Message) error {
 
 // SetAgentSession stores the CLI session ID for an agent and rewrites agents.json atomically.
 func (s *Session) SetAgentSession(agent, id string) error {
-	s.AgentSessions[agent] = id
+	// Make a copy of the current agent sessions and update the copy.
+	newSessions := make(map[string]string)
+	for k, v := range s.AgentSessions {
+		newSessions[k] = v
+	}
+	newSessions[agent] = id
 
-	data, err := json.Marshal(s.AgentSessions)
+	data, err := json.Marshal(newSessions)
 	if err != nil {
 		return err
 	}
@@ -195,6 +211,9 @@ func (s *Session) SetAgentSession(agent, id string) error {
 		defer d.Close()
 		syscall.Fsync(int(d.Fd()))
 	}
+
+	// Only update in-memory state after successful persistence.
+	s.AgentSessions = newSessions
 
 	return nil
 }

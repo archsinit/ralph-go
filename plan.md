@@ -66,37 +66,53 @@ Index of build tasks. Each line references a prompt file under tasks/. Run these
 
 ## Phase 4.5 — TUI/session readiness follow-up
 
-- [ ] Fix TUI orchestrator-facing API and submit contract → tasks/31a-fix-tui-external-event-and-submit-hooks.md
-- [ ] Fix TUI viewport, spinner, rendering, and harness behavior → tasks/31b-fix-tui-scrolling-autoscroll-and-spinner-behavior.md
-- [ ] Harden remaining session sequence and durability edge cases → tasks/31c-harden-remaining-session-durability-edge-cases.md
-- [ ] reviewer: REVIEW: phase 4.5 readiness for orchestrator → tasks/31d-review-phase-4-5-readiness-for-orchestrator.md
+- [x] Fix TUI orchestrator-facing API and submit contract → tasks/31a-fix-tui-external-event-and-submit-hooks.md
+- [x] Fix TUI viewport, spinner, rendering, and harness behavior → tasks/31b-fix-tui-scrolling-autoscroll-and-spinner-behavior.md
+- [x] Harden remaining session sequence and durability edge cases → tasks/31c-harden-remaining-session-durability-edge-cases.md
+- [x] reviewer: REVIEW: phase 4.5 readiness for orchestrator → tasks/31d-review-phase-4-5-readiness-for-orchestrator.md
 
 ## Phase 5 — plan orchestrator
 
-- [ ] Implement prefix parser → tasks/32-implement-prefix-parser.md
-- [ ] Implement round-robin turn engine → tasks/33-implement-round-robin-turn-engine.md
-- [ ] Implement cancel current turn → tasks/34-implement-cancel-current-turn.md
-- [ ] Wire plan subcommand end-to-end → tasks/35-wire-plan-subcommand-end-to-end.md
-- [ ] executor: TEST: orchestrator order, routing, cancel → tasks/36-test-orchestrator-order-routing-cancel.md
-- [ ] reviewer: REVIEW: plan loop with two echo agents → tasks/37-review-plan-loop-with-two-echo-agents.md
+- [x] Implement prefix parser → tasks/32-implement-prefix-parser.md
+- [x] Implement round-robin turn engine → tasks/33-implement-round-robin-turn-engine.md
+- [x] Implement cancel current turn → tasks/34-implement-cancel-current-turn.md
+- [x] Wire plan subcommand end-to-end → tasks/35-wire-plan-subcommand-end-to-end.md
+- [x] executor: TEST: orchestrator order, routing, cancel → tasks/36-test-orchestrator-order-routing-cancel.md
+- [x] reviewer: REVIEW: plan loop with two echo agents → tasks/37-review-plan-loop-with-two-echo-agents.md
 
-## Phase 5.5 — plan format package (shared)
+## Phase 5.5 — plan orchestrator readiness follow-up
 
-- [ ] Define TaskSpec schema and strict decoder → tasks/38-define-taskspec-schema-and-strict-decoder.md
-- [ ] Implement slug and numbering helpers → tasks/39-implement-slug-and-numbering-helpers.md
-- [ ] Implement task file renderer → tasks/40-implement-task-file-renderer.md
-- [ ] Implement index writer → tasks/41-implement-index-writer.md
-- [ ] Implement index parser, loader, and flip → tasks/42-implement-index-parser-loader-and-flip.md
-- [ ] executor: TEST: plan format round-trip → tasks/43-test-plan-format-round-trip.md
-- [ ] reviewer: REVIEW: generated artifacts are clean → tasks/44-review-generated-artifacts-are-clean.md
+- [x] Fix TUI runtime lifecycle, cancel signaling, and bridge safety → tasks/37a-fix-tui-runtime-lifecycle-cancel-and-bridge-safety.md
+- [x] Fix engine turn semantics, cancellation, and adapter request contract → tasks/37b-fix-engine-turn-semantics-cancellation-and-adapter-request-contract.md
+- [x] Fix plan command wiring and turn-order model ownership → tasks/37c-fix-plan-command-wiring-and-turn-order-model-ownership.md
+- [x] executor: TEST: plan orchestrator lifecycle and cancellation regressions → tasks/37d-test-plan-orchestrator-lifecycle-and-cancellation-regressions.md
+- [x] reviewer: REVIEW: phase 5.5 plan orchestrator readiness → tasks/37e-review-phase-5-5-plan-orchestrator-readiness.md
+
+## Phase 5.6 — plan format package (shared)
+
+- [x] Define TaskSpec schema and strict decoder → tasks/38-define-taskspec-schema-and-strict-decoder.md
+- [x] Implement slug and numbering helpers → tasks/39-implement-slug-and-numbering-helpers.md
+- [x] Implement task file renderer → tasks/40-implement-task-file-renderer.md
+- [x] Implement index writer → tasks/41-implement-index-writer.md
+- [x] Implement index parser, loader, and flip → tasks/42-implement-index-parser-loader-and-flip.md
+- [x] executor: TEST: plan format round-trip → tasks/43-test-plan-format-round-trip.md
+- [x] reviewer: REVIEW: generated artifacts are clean → tasks/44-review-generated-artifacts-are-clean.md
 
 ## Phase 6 — checklist generation
 
-- [ ] Implement /plan command in chatroom → tasks/45-implement-plan-command-in-chatroom.md
-- [ ] Parse plan output and write files → tasks/46-parse-plan-output-and-write-files.md
-- [ ] Implement /quit command → tasks/47-implement-quit-command.md
-- [ ] executor: TEST: /plan writes valid files with echo agent → tasks/48-test-plan-writes-valid-files-with-echo-agent.md
-- [ ] reviewer: REVIEW: real /plan generation quality → tasks/49-review-real-plan-generation-quality.md
+- [x] Implement /plan command in chatroom → tasks/45-implement-plan-command-in-chatroom.md
+- [x] Parse plan output and write files → tasks/46-parse-plan-output-and-write-files.md
+- [x] Implement /quit command → tasks/47-implement-quit-command.md
+- [x] executor: TEST: /plan writes valid files with echo agent → tasks/48-test-plan-writes-valid-files-with-echo-agent.md
+- [x] reviewer: REVIEW: real /plan generation quality → tasks/49-review-real-plan-generation-quality.md
+
+## Phase 6.5 — plan chatroom and checklist generation audit follow-up
+
+- [ ] Fix remaining TUI/bridge lifecycle, cancellation, and shutdown semantics → tasks/49a-fix-tui-bridge-lifecycle-cancellation-and-shutdown.md
+- [ ] Fix engine turn cancellation and adapter request contracts → tasks/49b-fix-engine-turn-cancellation-and-adapter-request-contracts.md
+- [ ] Align /plan generation with the plan package schema and safe artifact writes → tasks/49c-align-plan-generation-schema-and-safe-writes.md
+- [ ] executor: TEST: phase 6.5 lifecycle, cancellation, and /plan regressions → tasks/49d-test-phase-6-5-lifecycle-cancellation-and-plan-regressions.md
+- [ ] reviewer: REVIEW: phase 6.5 plan chatroom readiness → tasks/49e-review-phase-6-5-plan-chatroom-readiness.md
 
 ## Phase 7 — plan integration and polish
 
